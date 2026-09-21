@@ -4,10 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScoredTmdbResult } from "@/lib/tmdb";
 
-export function MatchReview({ movieId, title }: { movieId: string; title: string }) {
+export function MatchReview({
+  movieId,
+  title,
+  initialResults = []
+}: {
+  movieId: string;
+  title: string;
+  initialResults?: ScoredTmdbResult[];
+}) {
   const router = useRouter();
   const [query, setQuery] = useState(title);
-  const [results, setResults] = useState<ScoredTmdbResult[]>([]);
+  const [results, setResults] = useState<ScoredTmdbResult[]>(initialResults);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

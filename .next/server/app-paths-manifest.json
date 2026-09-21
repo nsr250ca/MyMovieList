@@ -1,0 +1,9 @@
+{
+  "/api/movies/[id]/match/route": "app/api/movies/[id]/match/route.js",
+  "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/movies/[id]/page": "app/movies/[id]/page.js",
+  "/matches/page": "app/matches/page.js",
+  "/movies/page": "app/movies/page.js"
+}

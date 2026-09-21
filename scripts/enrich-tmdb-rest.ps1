@@ -2,8 +2,11 @@ param(
   [string]$TargetUserId = "774a8303-fbcf-43d2-b2c0-341c8416241c",
   [string]$MovieId = "",
   [int]$MaxMovies = 50,
-  [decimal]$AcceptScore = 90,
+  [decimal]$AcceptScore = 101,
+  [decimal]$DefaultMatchScore = 100,
   [int]$DelayMs = 250,
+  [switch]$AutoAccept,
+  [switch]$AcceptSuggested100,
   [switch]$DryRun
 )
 
@@ -257,6 +260,46 @@ function Get-MovieDetails {
   }
 }
 
+function Set-AcceptedMovieMatch {
+  param(
+    $Movie,
+    $Candidate,
+    $Details,
+    [decimal]$Score
+  )
+
+  if ($DryRun) {
+    return
+  }
+
+  Invoke-SupabaseRest `
+    -Method Patch `
+    -Path "/rest/v1/movies?id=eq.$($Movie.id)&user_id=eq.$TargetUserId" `
+    -Body @{
+      english_title = $Details.english_title
+      original_title = $Details.original_title
+      tmdb_id = $Details.tmdb_id
+      tmdb_poster_path = $Details.tmdb_poster_path
+      tmdb_backdrop_path = $Details.tmdb_backdrop_path
+      overview = $Details.overview
+      release_date = $Details.release_date
+      runtime_minutes = $Details.runtime_minutes
+      original_language = $Details.original_language
+      genres = $Details.genres
+      directors = $Details.directors
+      cast_members = $Details.cast_members
+      match_status = "accepted"
+      match_confidence = $Score
+    } `
+    -ExtraHeaders @("Prefer: return=minimal") | Out-Null
+
+  Invoke-SupabaseRest `
+    -Method Patch `
+    -Path "/rest/v1/movie_match_candidates?movie_id=eq.$($Movie.id)&tmdb_id=eq.$($Candidate.tmdb_id)" `
+    -Body @{ accepted = $true; score = $Score; payload = $Details } `
+    -ExtraHeaders @("Prefer: return=minimal") | Out-Null
+}
+
 $envMap = Read-EnvFile
 $script:SupabaseUrl = $envMap["NEXT_PUBLIC_SUPABASE_URL"]
 $script:ServiceRoleKey = $envMap["SUPABASE_SERVICE_ROLE_KEY"]
@@ -269,9 +312,11 @@ if (-not $script:TmdbAccessToken) {
   throw "Missing TMDB_ACCESS_TOKEN in .env.local."
 }
 
-$select = "id,display_title,original_title,match_status,tmdb_id,tmdb_poster_path"
+$select = "id,display_title,original_title,match_status,match_confidence,tmdb_id,tmdb_poster_path"
 if ($MovieId) {
   $movies = Invoke-SupabaseRest -Method Get -Path "/rest/v1/movies?id=eq.$MovieId&user_id=eq.$TargetUserId&select=$select"
+} elseif ($AcceptSuggested100) {
+  $movies = Invoke-SupabaseRest -Method Get -Path "/rest/v1/movies?user_id=eq.$TargetUserId&match_status=eq.suggested&match_confidence=eq.$DefaultMatchScore&select=$select&order=created_at.asc&limit=$MaxMovies"
 } else {
   $movies = Invoke-SupabaseRest -Method Get -Path "/rest/v1/movies?user_id=eq.$TargetUserId&match_status=eq.unmatched&select=$select&order=created_at.asc&limit=$MaxMovies"
 }
@@ -287,6 +332,35 @@ foreach ($movie in @($movies)) {
   $processed += 1
 
   try {
+    if ($AcceptSuggested100) {
+      $candidateRows = Invoke-SupabaseRest `
+        -Method Get `
+        -Path "/rest/v1/movie_match_candidates?movie_id=eq.$($movie.id)&score=eq.$DefaultMatchScore&accepted=eq.false&select=id,movie_id,tmdb_id,title,original_title,score&order=created_at.asc&limit=1"
+
+      if ($candidateRows.Count -eq 0) {
+        $noMatch += 1
+        $samples += [PSCustomObject]@{
+          title = $movie.display_title
+          status = "no-score-100-candidate"
+          score = $null
+          tmdb_title = $null
+        }
+        continue
+      }
+
+      $candidate = @($candidateRows)[0]
+      $details = Get-MovieDetails $candidate.tmdb_id
+      Set-AcceptedMovieMatch -Movie $movie -Candidate $candidate -Details $details -Score $DefaultMatchScore
+      $accepted += 1
+      $samples += [PSCustomObject]@{
+        title = $movie.display_title
+        status = "accepted"
+        score = $DefaultMatchScore
+        tmdb_title = $details.english_title
+      }
+      continue
+    }
+
     $candidates = Get-SearchCandidates $movie.display_title
 
     if ($candidates.Count -eq 0) {
@@ -307,6 +381,7 @@ foreach ($movie in @($movies)) {
 
     $best = $candidates[0]
     $candidateRows = @($candidates | ForEach-Object {
+      $candidateScore = if ($_.id -eq $best.id) { $DefaultMatchScore } else { $_.score }
       [PSCustomObject]@{
         user_id = $TargetUserId
         movie_id = $movie.id
@@ -316,7 +391,7 @@ foreach ($movie in @($movies)) {
         release_date = $_.release_date
         poster_path = $_.poster_path
         original_language = $_.original_language
-        score = $_.score
+        score = $candidateScore
         accepted = $false
         payload = $_.payload
       }
@@ -330,7 +405,7 @@ foreach ($movie in @($movies)) {
         -ExtraHeaders @("Prefer: resolution=merge-duplicates,return=minimal") | Out-Null
     }
 
-    if (Test-AutoAcceptableMatch $movie.display_title $best $AcceptScore) {
+    if ($AutoAccept -and (Test-AutoAcceptableMatch $movie.display_title $best $AcceptScore)) {
       $details = Get-MovieDetails $best.id
       $accepted += 1
 
@@ -352,7 +427,7 @@ foreach ($movie in @($movies)) {
             directors = $details.directors
             cast_members = $details.cast_members
             match_status = "accepted"
-            match_confidence = $best.score
+            match_confidence = $DefaultMatchScore
           } `
           -ExtraHeaders @("Prefer: return=minimal") | Out-Null
 
@@ -366,7 +441,7 @@ foreach ($movie in @($movies)) {
       $samples += [PSCustomObject]@{
         title = $movie.display_title
         status = "accepted"
-        score = $best.score
+        score = $DefaultMatchScore
         tmdb_title = $details.english_title
       }
     } else {
@@ -390,7 +465,7 @@ foreach ($movie in @($movies)) {
             directors = @()
             cast_members = @()
             match_status = "suggested"
-            match_confidence = $best.score
+            match_confidence = $DefaultMatchScore
           } `
           -ExtraHeaders @("Prefer: return=minimal") | Out-Null
       }
@@ -398,7 +473,7 @@ foreach ($movie in @($movies)) {
       $samples += [PSCustomObject]@{
         title = $movie.display_title
         status = "suggested"
-        score = $best.score
+        score = $DefaultMatchScore
         tmdb_title = $best.title
       }
     }
