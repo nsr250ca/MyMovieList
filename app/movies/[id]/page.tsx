@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { Poster } from "@/components/poster";
 import { SetupWarning } from "@/components/setup-warning";
 import { createClient } from "@/lib/supabase/server";
+import { MatchReview } from "@/app/matches/match-review";
 
 type WatchRow = {
   id: string;
@@ -51,7 +52,7 @@ export default async function MovieDetailPage({ params }: { params: Promise<{ id
         </Link>
       </div>
 
-      <div className="dashboard-grid">
+      <div className="movie-detail-layout">
         <section className="card">
           <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
             <Poster path={movie.tmdb_poster_path} title={movie.display_title} />
@@ -117,6 +118,32 @@ export default async function MovieDetailPage({ params }: { params: Promise<{ id
               ))}
             </tbody>
           </table>
+        </section>
+
+        <section className="card correction-card">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Manual correction</p>
+              <h2>TMDB match and split</h2>
+            </div>
+            <span className="status-pill">{movie.match_confidence ?? "—"} score</span>
+          </div>
+          <p className="muted">
+            Search TMDB again to replace this movie’s metadata, or select watched dates and split
+            them into another release with the same title.
+          </p>
+          <MatchReview
+            movieId={movie.id}
+            title={movie.display_title}
+            startCollapsed
+            triggerLabel="Search TMDB again"
+            allowSplit
+            watchEntries={((watches ?? []) as WatchRow[]).map((watch) => ({
+              id: watch.id,
+              watched_on: watch.watched_on,
+              source_title: watch.source_title
+            }))}
+          />
         </section>
       </div>
     </AppShell>

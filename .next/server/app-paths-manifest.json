@@ -1,9 +1,17 @@
 {
+  "/api/import/parse/route": "app/api/import/parse/route.js",
+  "/api/import/commit/route": "app/api/import/commit/route.js",
+  "/api/tmdb/search/route": "app/api/tmdb/search/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/api/movies/[id]/match/route": "app/api/movies/[id]/match/route.js",
-  "/page": "app/page.js",
-  "/login/page": "app/login/page.js",
+  "/api/watch-entries/route": "app/api/watch-entries/route.js",
+  "/api/movies/[id]/split/route": "app/api/movies/[id]/split/route.js",
+  "/import/page": "app/import/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/movies/[id]/page": "app/movies/[id]/page.js",
   "/matches/page": "app/matches/page.js",
-  "/movies/page": "app/movies/page.js"
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/watch-entries/new/page": "app/watch-entries/new/page.js",
+  "/movies/page": "app/movies/page.js",
+  "/movies/[id]/page": "app/movies/[id]/page.js"
 }

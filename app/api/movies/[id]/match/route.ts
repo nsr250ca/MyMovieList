@@ -24,6 +24,14 @@ export async function POST(
     }
 
     const details = await getTmdbMovieDetails(Number(body.tmdbId));
+    const { error: resetCandidateError } = await supabase
+      .from("movie_match_candidates")
+      .update({ accepted: false })
+      .eq("movie_id", id)
+      .eq("user_id", user.id);
+
+    if (resetCandidateError) throw resetCandidateError;
+
     const { error: movieError } = await supabase
       .from("movies")
       .update({

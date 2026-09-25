@@ -1,0 +1,8 @@
+{
+  "/api/tmdb/search/route": "app/api/tmdb/search/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/movies/[id]/page": "app/movies/[id]/page.js",
+  "/movies/page": "app/movies/page.js",
+  "/watch-entries/new/page": "app/watch-entries/new/page.js",
+  "/login/page": "app/login/page.js"
+}
